@@ -8,6 +8,7 @@ public class Guard : MonoBehaviour
     [SerializeField] PersonList personList;
     [SerializeField] private float checkPersonTime = 4f;
     [SerializeField] private float startWaitTime = 1f;
+    [SerializeField] private float stopTreshold = 0.2f;
     private float checkPersonTimer = 0f;
     private float startWaitTimer = 0f;
     private NavMeshAgent navMeshAgent;
@@ -19,6 +20,7 @@ public class Guard : MonoBehaviour
     private NavMeshPath navMeshPath;
     private List<Person> _personList;
     private Vector3 _targetPosition;
+    private Person friskedPerson = null;
     private void Start()
     {
         navMeshAgent = GetComponent<NavMeshAgent>();
@@ -43,34 +45,58 @@ public class Guard : MonoBehaviour
             }
             return;
         }
-        // keep tracking person
-        if(target != null)
+        // if at post and no target assigned try looking for new one
+        if(target == null)
         {
+            // if at post
+            if(navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance && navMeshAgent.pathStatus == NavMeshPathStatus.PathComplete)
+            {
+                if(checkPersonTimer > 0) // make a little wait
+                {
+                    checkPersonTimer -= Time.deltaTime;
+                }
+                else // if wait is over pick try pick next target, or wait another time
+                {
+                    CheckNextRandomPerson();
+                    checkPersonTimer = checkPersonTime;
+                }
+            }
+        }
+        // else work on target
+        else
+        {
+            // keep traking target
             navMeshAgent.SetDestination(target.position);
             // if person slipped away go to original post
             if(!isTargetReachable(target.position))
             {
                 target = null;
+                friskedPerson = null;
                 GoToInitialPost();
-            }
-        }
-        // if reached any target try next target within given time
-        if(navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance)
-        {
-            if (checkPersonTimer == 0) // the very first target pick up at start
-            {
-                CheckNextRandomPerson();
-                checkPersonTimer = checkPersonTime;
                 return;
             }
-            if (checkPersonTimer > 0)
+            float distanceToTarget = Vector3.Distance(this.transform.position, target.position);
+            // if reached any target - frisk target and try next target within given time
+            if(distanceToTarget <= navMeshAgent.stoppingDistance + stopTreshold)
             {
-                checkPersonTimer -= Time.deltaTime;    
-            }
-            else // next pickup
-            {
-                CheckNextRandomPerson();
-                checkPersonTimer = checkPersonTime;
+                if (checkPersonTimer > 0)
+                {
+                    checkPersonTimer -= Time.deltaTime;
+                    // frisking logic
+                    if(friskedPerson != null)
+                    {
+                        friskedPerson.BeingFrisked();
+                    }
+                }
+                else // next pickup
+                {
+                    if(friskedPerson != null)
+                    {
+                        friskedPerson.ReleaseFromFrisking();
+                    }
+                    CheckNextRandomPerson();
+                    checkPersonTimer = checkPersonTime;
+                }
             }
         }
     }
@@ -90,6 +116,7 @@ public class Guard : MonoBehaviour
             if(isTargetReachable(_targetPosition))
             {
                 target = _personList[currentIndex].transform;
+                friskedPerson = target.GetComponent<Person>();
                 break;
             }
             else
