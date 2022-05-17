@@ -9,6 +9,7 @@ public class Guard : MonoBehaviour
     [SerializeField] private float checkPersonTime = 4f;
     [SerializeField] private float startWaitTime = 1f;
     [SerializeField] private float stopTreshold = 0.2f;
+    private Animator animator;
     private float checkPersonTimer = 0f;
     private float startWaitTimer = 0f;
     private NavMeshAgent navMeshAgent;
@@ -21,6 +22,7 @@ public class Guard : MonoBehaviour
     private List<Person> _personList;
     private Vector3 _targetPosition;
     private Person friskedPerson = null;
+    private bool frisking = false;
     private void Start()
     {
         navMeshAgent = GetComponent<NavMeshAgent>();
@@ -29,6 +31,7 @@ public class Guard : MonoBehaviour
         startWaitTimer = startWaitTime;
         initialPosition = this.transform.position;
         numberOfPersons = personList.personList.Count;
+        animator = GetComponent<Animator>();
     }
 
     private void Update()
@@ -46,12 +49,12 @@ public class Guard : MonoBehaviour
             return;
         }
         // if at post and no target assigned try looking for new one
-        if(target == null)
+        if (target == null)
         {
             // if at post
-            if(navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance && navMeshAgent.pathStatus == NavMeshPathStatus.PathComplete)
+            if (navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance && navMeshAgent.pathStatus == NavMeshPathStatus.PathComplete)
             {
-                if(checkPersonTimer > 0) // make a little wait
+                if (checkPersonTimer > 0) // make a little wait
                 {
                     checkPersonTimer -= Time.deltaTime;
                 }
@@ -68,7 +71,7 @@ public class Guard : MonoBehaviour
             // keep traking target
             navMeshAgent.SetDestination(target.position);
             // if person slipped away go to original post
-            if(!isTargetReachable(target.position))
+            if (!isTargetReachable(target.position))
             {
                 target = null;
                 friskedPerson = null;
@@ -77,28 +80,40 @@ public class Guard : MonoBehaviour
             }
             float distanceToTarget = Vector3.Distance(this.transform.position, target.position);
             // if reached any target - frisk target and try next target within given time
-            if(distanceToTarget <= navMeshAgent.stoppingDistance + stopTreshold)
+            if (distanceToTarget <= navMeshAgent.stoppingDistance + stopTreshold)
             {
                 if (checkPersonTimer > 0)
                 {
                     checkPersonTimer -= Time.deltaTime;
                     // frisking logic
-                    if(friskedPerson != null)
+                    if (friskedPerson != null)
                     {
                         friskedPerson.BeingFrisked();
+                        frisking = true;
                     }
                 }
                 else // next pickup
                 {
-                    if(friskedPerson != null)
+                    if (friskedPerson != null)
                     {
                         friskedPerson.ReleaseFromFrisking();
+                        frisking = false;
                     }
                     CheckNextRandomPerson();
                     checkPersonTimer = checkPersonTime;
                 }
             }
         }
+        if (animator != null)
+        {
+            UpdateAnimator();
+        }
+    }
+
+    private void UpdateAnimator()
+    {
+        animator.SetFloat("MoveSpeed", navMeshAgent.velocity.magnitude);
+        animator.SetBool("Frisking", frisking);
     }
 
     private void CheckNextRandomPerson()
@@ -113,7 +128,7 @@ public class Guard : MonoBehaviour
         {
             _targetPosition = _personList[currentIndex].transform.position;
             // check if target is reachable
-            if(isTargetReachable(_targetPosition))
+            if (isTargetReachable(_targetPosition))
             {
                 target = _personList[currentIndex].transform;
                 friskedPerson = target.GetComponent<Person>();
@@ -125,7 +140,7 @@ public class Guard : MonoBehaviour
             }
         }
         // if no valid target was found then go to original post
-        if(target == null)
+        if (target == null)
         {
             GoToInitialPost();
         }
@@ -149,12 +164,13 @@ public class Guard : MonoBehaviour
     private void ShuffleList<T>(ref List<T> list)
     {
         int n = list.Count;
-        while (n > 1) {  
-            n--;  
-            int k = random.Next(n + 1);  
-            T value = list[k];  
-            list[k] = list[n];  
-            list[n] = value;  
+        while (n > 1)
+        {
+            n--;
+            int k = random.Next(n + 1);
+            T value = list[k];
+            list[k] = list[n];
+            list[n] = value;
         }
     }
 }
